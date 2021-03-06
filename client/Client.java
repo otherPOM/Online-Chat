@@ -17,17 +17,49 @@ public class Client {
 
             System.out.println("Client started!");
 
-            while (!Thread.interrupted()) {
-                var s = scan.nextLine();
-                out.writeUTF(s);
-                if (s.equalsIgnoreCase("/exit")) {
-                    break;
-                } else {
-                    System.out.println(in.readUTF());
+            initName(in, out, scan);
+
+            var listeningThread = new Thread(() -> {
+                try {
+                    String s;
+                    while (!(s = in.readUTF()).equalsIgnoreCase("/exit") ) {
+                        System.out.println(s);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
-            }
-        } catch (IOException e) {
+            });
+
+            var sendingThread = new Thread(() -> {
+                try {
+                    while (true) {
+                        var s = scan.nextLine();
+                        out.writeUTF(s);
+                        if (s.equalsIgnoreCase("/exit")) {
+                            break;
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+
+            listeningThread.start();
+            sendingThread.start();
+
+            sendingThread.join();
+            listeningThread.join();
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void initName(DataInputStream in, DataOutputStream out, Scanner scan) throws IOException {
+        var serverMessage = in.readUTF();
+        while (!serverMessage.equalsIgnoreCase("success")) {
+            System.out.println(serverMessage);
+            out.writeUTF(scan.nextLine());
+            serverMessage = in.readUTF();
         }
     }
 }
