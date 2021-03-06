@@ -5,10 +5,12 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.function.Predicate;
 
 public class Server {
     private static final Queue<String> lastTenMessages = new LinkedBlockingQueue<>(10) {
@@ -22,6 +24,7 @@ public class Server {
     };
 
     private static final ConcurrentLinkedQueue<Session> sessions = new ConcurrentLinkedQueue<>();
+    private static final Set<String> clientsNames = Collections.synchronizedSet(new HashSet<>());
 
     public static void main(String[] args) {
         try (var serverSocket = new ServerSocket(1025)) {
@@ -77,26 +80,16 @@ public class Server {
             }
         }
 
-        public String getClientName() {
-            return clientName;
-        }
-
         private void initName() throws IOException {
             out.writeUTF("Server: write your name");
             var name = in.readUTF();
-            while (nameIsTaken(name) || name.isBlank()) {
+            while (clientsNames.contains(name) || name.isBlank()) {
                 out.writeUTF("Server: this name is already taken! Choose another one.");
                 name = in.readUTF();
             }
             clientName = name;
+            clientsNames.add(clientName);
             out.writeUTF("success");
-        }
-
-        private boolean nameIsTaken(String name) {
-            return sessions.stream()
-                    .map(Session::getClientName)
-                    .filter(Predicate.not(String::isEmpty))
-                    .anyMatch(seshName -> seshName.equals(name));
         }
 
         private void send(String message) throws IOException {
