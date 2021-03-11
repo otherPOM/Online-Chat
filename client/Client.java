@@ -17,8 +17,6 @@ public class Client {
 
             System.out.println("Client started!");
 
-            initName(in, out, scan);
-
             var listeningThread = new Thread(() -> {
                 try {
                     String s;
@@ -51,15 +49,6 @@ public class Client {
             listeningThread.join();
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
-        }
-    }
-
-    private static void initName(DataInputStream in, DataOutputStream out, Scanner scan) throws IOException {
-        var serverMessage = in.readUTF();
-        while (!serverMessage.equalsIgnoreCase("success")) {
-            System.out.println(serverMessage);
-            out.writeUTF(scan.nextLine());
-            serverMessage = in.readUTF();
         }
     }
 }

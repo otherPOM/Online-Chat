@@ -5,26 +5,12 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 public class Server {
-    private static final Queue<String> lastTenMessages = new LinkedBlockingQueue<>(10) {
-        @Override
-        public boolean offer(String s) {
-            while (!super.offer(s)) {
-                remove();
-            }
-            return true;
-        }
-    };
+    private Server() {}
 
     private static final ConcurrentLinkedQueue<Session> sessions = new ConcurrentLinkedQueue<>();
-    private static final Set<String> clientsNames = Collections.synchronizedSet(new HashSet<>());
 
     public static void main(String[] args) {
         try (var serverSocket = new ServerSocket(1025)) {
@@ -40,61 +26,125 @@ public class Server {
         }
     }
 
-    private static class Session extends Thread {
+    private static String listOnlineUsers(String exclude) {
+        var sb = new StringBuilder("Server: ");
+
+        if (sessions.size() == 1) {
+            sb.append("no one online");
+            return sb.toString();
+        }
+        sb.append("online:");
+        sessions.stream()
+                .filter(session -> !session.clientName.equals(exclude))
+                .forEach(session -> sb.append(" ").append(session.clientName));
+        return sb.toString();
+    }
+
+
+
+
+    static class Session extends Thread {
         private final DataOutputStream out;
         private final DataInputStream in;
 
-        private String clientName = "";
+        String clientName;
+        boolean authorized = false;
+        Session addressee;
+
+        private MessageLogger logger;
 
         private Session(Socket socket) throws IOException {
             out = new DataOutputStream(socket.getOutputStream());
             in = new DataInputStream(socket.getInputStream());
         }
 
+//        TODO decompose the method?
         @Override
         public void run() {
             try (in; out) {
-                initName();
+                out.writeUTF("Server: authorize or register");
 
-                for (String message : lastTenMessages) {
-                    out.writeUTF(message);
-                }
-
+                mainLoop:
                 while (!isInterrupted()) {
-                    var mes = in.readUTF();
-                    if (mes.equalsIgnoreCase("/exit")) {
-                        out.writeUTF(mes);
-                        sessions.remove(this);
-                        // clientName disconnected ?
-                        break;
-                    }
-                    mes = clientName + ": " + mes;
-                    lastTenMessages.offer(mes);
-                    for (Session session : sessions) {
-                        session.send(mes);
+                    var clientMessage = in.readUTF().strip();
+
+                    switch (MessageType.messageType(clientMessage)) {
+                        case REGISTRATION:
+                            var regCreds = clientMessage.split("\\s+");
+                            out.writeUTF(ClientDB.register(regCreds[1], regCreds[2]));
+                            break;
+                        case AUTH:
+                            var authCreds = clientMessage.split("\\s+");
+                            out.writeUTF(ClientDB.auth(authCreds[1], authCreds[2]));
+                            break;
+                        case LIST:
+                            if (!authorized) {
+                                out.writeUTF("Server: you are not in the chat!");
+                                break;
+                            }
+                            out.writeUTF(listOnlineUsers(clientName));
+                            break;
+                        case CHAT:
+                            if (!authorized) {
+                                out.writeUTF("Server: you are not in the chat!");
+                                break;
+                            }
+                            var addresseeName = clientMessage.split("\\s+")[1];
+                            if (addresseeName.equals(clientName)) { // safety precaution
+                                break;
+                            }
+                            var optionalAddressee = sessions.stream()
+                                    .filter(session -> session.clientName.equals(addresseeName))
+                                    .findFirst();
+                            if (optionalAddressee.isEmpty()) {
+                                out.writeUTF("Server: the user is not online!");
+                            } else {
+                                addressee = optionalAddressee.get();
+                                logger = MessageLogger.loggerFor(clientName, addressee.clientName);
+                                out.writeUTF(logger.getLastTen(clientName));
+                            }
+                            break;
+                        case MESSAGE:
+                            if (!authorized) {
+                                out.writeUTF("Server: you are not in the chat!");
+                                break;
+                            }
+                            if (addressee == null) {
+                                out.writeUTF("Server: use /list command to choose a user to text!");
+                                break;
+                            }
+                            clientMessage = clientName + ": " + clientMessage;
+                            out.writeUTF(clientMessage);
+                            if (addressee.addressee == this) {
+                                addressee.send(clientMessage);
+                            } else {
+                                logger.logNew(clientMessage, addressee.clientName);
+                            }
+                            logger.log(clientMessage);
+                            break;
+                        case INVALID:
+                            out.writeUTF("Server: incorrect command!");
+                            break;
+                        case EXIT:
+                            out.writeUTF("/exit");
+                            sessions.forEach(session -> session.disconnect(this));
+                            sessions.remove(this);
+                            break mainLoop;
                     }
                 }
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-        private void initName() throws IOException {
-            out.writeUTF("Server: write your name");
-            var name = in.readUTF();
-            while (clientsNames.contains(name) || name.isBlank()) {
-                out.writeUTF("Server: this name is already taken! Choose another one.");
-                name = in.readUTF();
-            }
-            clientName = name;
-            clientsNames.add(clientName);
-            out.writeUTF("success");
+        private void send(String message) throws IOException {
+            out.writeUTF(message);
         }
 
-        private void send(String message) throws IOException {
-            if (!clientName.isEmpty()) // Only send to initialized clients
-            out.writeUTF(message);
+        private void disconnect(Session other) {
+            if (addressee == other) {
+                addressee = null;
+            }
         }
     }
 }
