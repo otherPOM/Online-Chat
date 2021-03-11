@@ -9,7 +9,18 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.WRITE;
 
 public class ClientDB {
-    private static final Path PATH = Path.of("Clients.txt");
+    private static final Path PATH;
+
+    static {
+        PATH = Path.of("Clients.txt");
+        try {
+            if (Files.notExists(PATH)) {
+                Files.createFile(PATH);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     static synchronized String register(String login, String pw) throws IOException {
         try (var out = Files.newBufferedWriter(PATH, CREATE, WRITE, APPEND);
@@ -32,8 +43,7 @@ public class ClientDB {
     }
 
     static synchronized String auth(String login, String pw) throws IOException {
-        try (var in = Files.newBufferedReader(PATH);
-             var out = Files.newBufferedWriter(PATH, CREATE, WRITE, APPEND)) {
+        try (var in = Files.newBufferedReader(PATH)) {
 
             var optional = in.lines()
                     .filter(line -> line.startsWith(login))
@@ -57,3 +67,4 @@ public class ClientDB {
         }
     }
 }
+

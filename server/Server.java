@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 
 public class Server {
     private Server() {}
@@ -29,14 +30,17 @@ public class Server {
     private static String listOnlineUsers(String exclude) {
         var sb = new StringBuilder("Server: ");
 
-        if (sessions.size() == 1) {
+        var online = sessions.stream()
+                .filter(session -> session.authorized &&
+                        !session.clientName.equals(exclude))
+                .collect(Collectors.toList());
+
+        if (online.isEmpty()) {
             sb.append("no one online");
             return sb.toString();
         }
         sb.append("online:");
-        sessions.stream()
-                .filter(session -> !session.clientName.equals(exclude))
-                .forEach(session -> sb.append(" ").append(session.clientName));
+        online.forEach(session -> sb.append(" ").append(session.clientName));
         return sb.toString();
     }
 
@@ -101,7 +105,10 @@ public class Server {
                             } else {
                                 addressee = optionalAddressee.get();
                                 logger = MessageLogger.loggerFor(clientName, addressee.clientName);
-                                out.writeUTF(logger.getLastTen(clientName));
+                                var history = logger.getLastTen(clientName);
+                                if (history != null) {
+                                    out.writeUTF(history);
+                                }
                             }
                             break;
                         case MESSAGE:

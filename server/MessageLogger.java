@@ -20,9 +20,9 @@ public class MessageLogger {
     private final String client2;
     private final Path folder;
     private final Path logFile;
-    private int lineCounter;
-    private int newLineCounterClient1;
-    private int newLineCounterClient2;
+    private long lineCounter;
+    private long newLineCounterClient1;
+    private long newLineCounterClient2;
 
     private MessageLogger(String first, String second) throws IOException {
         client1 = first;
@@ -30,9 +30,11 @@ public class MessageLogger {
         folder = Path.of(first + second);
         Files.createDirectories(folder);
         logFile = folder.resolve("log.txt");
-        lineCounter = 0;
-        newLineCounterClient1 = 0;
-        newLineCounterClient2 = 0;
+        lineCounter = Files.exists(logFile) ? Files.newBufferedReader(logFile).lines().count() : 0;
+        newLineCounterClient1 = Files.exists(folder.resolve(client1 + ".txt")) ?
+                Files.newBufferedReader(folder.resolve(client1 + ".txt")).lines().count() : 0;
+        newLineCounterClient2 =  Files.exists(folder.resolve(client2 + ".txt")) ?
+                Files.newBufferedReader(folder.resolve(client2 + ".txt")).lines().count() : 0;
         loggers.put(first + second, new SoftReference<>(this));
     }
 
@@ -109,6 +111,6 @@ public class MessageLogger {
                 }
             }
         }
-        return "";
+        return null;
     }
 }

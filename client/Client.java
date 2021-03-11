@@ -25,6 +25,7 @@ public class Client {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                    System.exit(0);
                 }
             });
 
@@ -39,6 +40,7 @@ public class Client {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                    System.exit(0);
                 }
             });
 
