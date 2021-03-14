@@ -7,6 +7,7 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class Client {
+    private Client() {}
 
     public static void main(String[] args) {
 
@@ -25,7 +26,6 @@ public class Client {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
-                    System.exit(0);
                 }
             });
 
@@ -40,7 +40,6 @@ public class Client {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
-                    System.exit(0);
                 }
             });
 
