@@ -62,7 +62,6 @@ public class Server {
             in = new DataInputStream(socket.getInputStream());
         }
 
-//        TODO decompose the method?
         @Override
         public void run() {
             try (in; out) {
